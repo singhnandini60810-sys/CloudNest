@@ -13,6 +13,7 @@ import PreviewFileModal from "../components/files/PreviewFileModal";
 import ShareFileModal from "../components/files/ShareFileModal";
 import DeleteFileModal from "../components/files/DeleteFileModal";
 import NewFolderModal from "../components/files/NewFolderModal";
+import "../styles/files.css";
 
 import Toast, {
   type ToastType,
@@ -397,23 +398,11 @@ function MyFilesPage() {
     );
   };
 
-  const handlePreview = (
-    file: CloudFile,
-  ) => {
-    setPreviewFile(file);
-  };
-
   const handleOpenShare = (
     file: CloudFile,
   ) => {
     setPreviewFile(null);
     setShareFile(file);
-  };
-
-  const handleDelete = (
-    file: CloudFile,
-  ) => {
-    setDeleteFile(file);
   };
 
   const handleConfirmDelete = (
@@ -533,59 +522,49 @@ function MyFilesPage() {
           </div>
         </div>
 
-        {visibleFiles.length === 0 ? (
-          <div className="files-empty-state">
-            <div className="files-empty-state__icon">
-              ☁️
-            </div>
+       {visibleFiles.length === 0 ? (
+  <div className="files-empty-state">
+    <div className="files-empty-state__icon">☁️</div>
+    <h3>No files found</h3>
+    <p>Try changing your search or file-type filter.</p>
+  </div>
+) : viewMode === "grid" ? (
+  <div className="cloud-file-grid">
+    {visibleFiles.map((file) => (
+      <FileCard
+        key={file.id}
+        file={file}
+        onToggleFavorite={handleToggleFavorite}
+        onPreview={setPreviewFile}
+        onDownload={handleDownload}
+        onShare={setShareFile}
+        onDelete={setDeleteFile}
+      />
+    ))}
+  </div>
+) : (
+  <div className="file-list">
+    <div className="file-list__header">
+      <span>File</span>
+      <span>Type</span>
+      <span>Size</span>
+      <span>Uploaded</span>
+      <span>Actions</span>
+    </div>
 
-            <h3>No files found</h3>
-
-            <p>
-              Try changing your search or file-type filter.
-            </p>
-          </div>
-        ) : viewMode === "grid" ? (
-          <div className="cloud-file-grid">
-            {visibleFiles.map((file) => (
-              <FileCard
-                key={file.id}
-                file={file}
-                onToggleFavorite={
-                  handleToggleFavorite
-                }
-                onPreview={handlePreview}
-                onDownload={handleDownload}
-                onShare={handleOpenShare}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="file-list">
-            <div className="file-list__header">
-              <span>File</span>
-              <span>Type</span>
-              <span>Size</span>
-              <span>Uploaded</span>
-              <span>Actions</span>
-            </div>
-
-            {visibleFiles.map((file) => (
-              <FileListRow
-                key={file.id}
-                file={file}
-                onToggleFavorite={
-                  handleToggleFavorite
-                }
-                onPreview={handlePreview}
-                onDownload={handleDownload}
-                onShare={handleOpenShare}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
-        )}
+    {visibleFiles.map((file) => (
+      <FileListRow
+        key={file.id}
+        file={file}
+        onToggleFavorite={handleToggleFavorite}
+        onPreview={setPreviewFile}
+        onDownload={handleDownload}
+        onShare={setShareFile}
+        onDelete={setDeleteFile}
+      />
+    ))}
+  </div>
+)}
       </section>
                  <UploadFileModal
         isOpen={uploadOpen}
