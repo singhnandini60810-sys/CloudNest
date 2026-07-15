@@ -16,6 +16,7 @@ interface FileToolbarProps {
   onCategoryChange: (value: string) => void;
   onSortChange: (value: string) => void;
   onViewChange: (value: "grid" | "list") => void;
+  onUploadClick: () => void;
 }
 
 function FileToolbar({
@@ -27,6 +28,7 @@ function FileToolbar({
   onCategoryChange,
   onSortChange,
   onViewChange,
+  onUploadClick,
 }: FileToolbarProps) {
   return (
     <section className="file-toolbar">
@@ -38,6 +40,7 @@ function FileToolbar({
           placeholder="Search your files..."
           value={searchTerm}
           onChange={(event) => onSearchChange(event.target.value)}
+          aria-label="Search your files"
         />
       </label>
 
@@ -56,6 +59,7 @@ function FileToolbar({
             <option value="video">Videos</option>
             <option value="audio">Audio</option>
             <option value="archive">Archives</option>
+            <option value="other">Other files</option>
           </select>
         </label>
 
@@ -74,12 +78,13 @@ function FileToolbar({
           </select>
         </label>
 
-        <div className="file-toolbar__view">
+        <div className="file-toolbar__view" aria-label="File view options">
           <button
             type="button"
             className={viewMode === "grid" ? "active" : ""}
             onClick={() => onViewChange("grid")}
-            aria-label="Grid view"
+            aria-label="Show files in grid view"
+            aria-pressed={viewMode === "grid"}
           >
             <Grid2X2 size={19} />
           </button>
@@ -88,13 +93,18 @@ function FileToolbar({
             type="button"
             className={viewMode === "list" ? "active" : ""}
             onClick={() => onViewChange("list")}
-            aria-label="List view"
+            aria-label="Show files in list view"
+            aria-pressed={viewMode === "list"}
           >
             <List size={20} />
           </button>
         </div>
 
-        <button className="primary-button" type="button">
+        <button
+          className="primary-button"
+          type="button"
+          onClick={onUploadClick}
+        >
           <Plus size={19} />
           Upload
         </button>

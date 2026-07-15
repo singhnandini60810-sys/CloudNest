@@ -1,9 +1,15 @@
-import { useMemo, useState } from "react";
 import { FolderPlus, Home, Upload } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import Toast, { type ToastType } from "../components/common/Toast";
+import DeleteFileModal from "../components/files/DeleteFileModal";
 import FileCard from "../components/files/FileCard";
 import FileListRow from "../components/files/FileListRow";
 import FileToolbar from "../components/files/FileToolbar";
 import FolderCard from "../components/files/FolderCard";
+import NewFolderModal from "../components/files/NewFolderModal";
+import PreviewFileModal from "../components/files/PreviewFileModal";
+import ShareFileModal from "../components/files/ShareFileModal";
+import UploadFileModal from "../components/files/UploadFileModal";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import type { CloudFile, CloudFolder } from "../types/file";
 
@@ -82,7 +88,7 @@ const initialFiles: CloudFile[] = [
   },
 ];
 
-const folders: CloudFolder[] = [
+const initialFolders: CloudFolder[] = [
   {
     id: "folder-1",
     name: "Summer Training",
@@ -109,12 +115,71 @@ const folders: CloudFolder[] = [
   },
 ];
 
+interface ToastState {
+  message: string;
+  type: ToastType;
+}
+
+function getFileCategory(fileName: string): CloudFile["category"] {
+  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
+
+  if (["pdf", "doc", "docx", "txt", "ppt", "pptx", "xls", "xlsx"].includes(extension)) {
+    return "document";
+  }
+
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension)) {
+    return "image";
+  }
+
+  if (["mp4", "mov", "avi", "mkv", "webm"].includes(extension)) {
+    return "video";
+  }
+
+  if (["mp3", "wav", "aac", "ogg"].includes(extension)) {
+    return "audio";
+  }
+
+  if (["zip", "rar", "7z", "tar"].includes(extension)) {
+    return "archive";
+  }
+
+  return "other";
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function MyFilesPage() {
   const [files, setFiles] = useState(initialFiles);
+  const [folders, setFolders] = useState(initialFolders);
   const [searchTerm, setSearchTerm] = useState("");
   const [category, setCategory] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isFolderOpen, setIsFolderOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<CloudFile | null>(null);
+  const [shareFile, setShareFile] = useState<CloudFile | null>(null);
+  const [deleteFile, setDeleteFile] = useState<CloudFile | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setToast(null);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const visibleFiles = useMemo(() => {
     const filteredFiles = files.filter((file) => {
@@ -145,6 +210,10 @@ function MyFilesPage() {
     });
   }, [category, files, searchTerm, sortBy]);
 
+  const showToast = (message: string, type: ToastType = "success") => {
+    setToast({ message, type });
+  };
+
   const handleToggleFavorite = (fileId: string) => {
     setFiles((currentFiles) =>
       currentFiles.map((file) =>
@@ -153,6 +222,67 @@ function MyFilesPage() {
           : file,
       ),
     );
+  };
+
+  const handleUpload = (uploadedFiles: File[]) => {
+    const newFiles: CloudFile[] = uploadedFiles.map((file, index) => {
+      const extension = file.name.split(".").pop()?.toUpperCase() ?? "FILE";
+
+      return {
+        id: `uploaded-${Date.now()}-${index}`,
+        name: file.name,
+        size: formatFileSize(file.size),
+        category: getFileCategory(file.name),
+        extension,
+        uploadedAt: "Just now",
+        isFavorite: false,
+      };
+    });
+
+    setFiles((currentFiles) => [...newFiles, ...currentFiles]);
+
+    showToast(
+      `${uploadedFiles.length} ${
+        uploadedFiles.length === 1 ? "file" : "files"
+      } uploaded successfully.`,
+    );
+  };
+
+  const handleCreateFolder = (name: string) => {
+    const newFolder: CloudFolder = {
+      id: `folder-${Date.now()}`,
+      name,
+      fileCount: 0,
+      updatedAt: "Created just now",
+    };
+
+    setFolders((currentFolders) => [newFolder, ...currentFolders]);
+    showToast(`Folder "${name}" created successfully.`);
+  };
+
+  const handleDownload = (file: CloudFile) => {
+    showToast(`Preparing ${file.name} for download.`, "info");
+  };
+
+  const handleConfirmDelete = (fileId: string) => {
+    const targetFile = files.find((file) => file.id === fileId);
+
+    setFiles((currentFiles) =>
+      currentFiles.filter((file) => file.id !== fileId),
+    );
+
+    setDeleteFile(null);
+
+    showToast(
+      targetFile
+        ? `${targetFile.name} moved to Trash.`
+        : "File moved to Trash.",
+    );
+  };
+
+  const handleOpenShare = (file: CloudFile) => {
+    setPreviewFile(null);
+    setShareFile(file);
   };
 
   return (
@@ -172,12 +302,20 @@ function MyFilesPage() {
         </div>
 
         <div className="files-page-header__actions">
-          <button className="secondary-button" type="button">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setIsFolderOpen(true)}
+          >
             <FolderPlus size={19} />
             New Folder
           </button>
 
-          <button className="primary-button" type="button">
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => setIsUploadOpen(true)}
+          >
             <Upload size={19} />
             Upload Files
           </button>
@@ -238,6 +376,10 @@ function MyFilesPage() {
                 key={file.id}
                 file={file}
                 onToggleFavorite={handleToggleFavorite}
+                onPreview={setPreviewFile}
+                onDownload={handleDownload}
+                onShare={setShareFile}
+                onDelete={setDeleteFile}
               />
             ))}
           </div>
@@ -256,11 +398,53 @@ function MyFilesPage() {
                 key={file.id}
                 file={file}
                 onToggleFavorite={handleToggleFavorite}
+                onPreview={setPreviewFile}
+                onDownload={handleDownload}
+                onShare={setShareFile}
+                onDelete={setDeleteFile}
               />
             ))}
           </div>
         )}
       </section>
+
+      <UploadFileModal
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUpload={handleUpload}
+      />
+
+      <NewFolderModal
+        isOpen={isFolderOpen}
+        onClose={() => setIsFolderOpen(false)}
+        onCreate={handleCreateFolder}
+      />
+
+      <PreviewFileModal
+        file={previewFile}
+        onClose={() => setPreviewFile(null)}
+        onDownload={handleDownload}
+        onShare={handleOpenShare}
+      />
+
+      <ShareFileModal
+        file={shareFile}
+        onClose={() => setShareFile(null)}
+      />
+
+      <DeleteFileModal
+        file={deleteFile}
+        onClose={() => setDeleteFile(null)}
+        onConfirm={handleConfirmDelete}
+      />
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </DashboardLayout>
   );
 }
