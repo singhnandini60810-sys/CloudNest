@@ -1,0 +1,42 @@
+.welcome-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
+
+.welcome-card {
+  width: 100%;
+  max-width: 720px;
+  padding: 48px 32px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius-large);
+  background: var(--background-card);
+  box-shadow: var(--shadow-medium);
+  text-align: center;
+  backdrop-filter: blur(18px);
+}
+
+.welcome-icon {
+  display: grid;
+  width: 92px;
+  height: 92px;
+  place-items: center;
+  margin: 0 auto 24px;
+  border-radius: 28px;
+  background: var(--color-navy);
+  color: var(--color-white);
+  box-shadow: var(--shadow-medium);
+}
+
+.welcome-card h1 {
+  margin-bottom: 12px;
+  font-size: clamp(2.2rem, 6vw, 4rem);
+}
+
+.welcome-card p {
+  max-width: 520px;
+  margin: 0 auto 28px;
+  color: var(--text-secondary);
+  font-size: 1.08rem;
+}

@@ -1,0 +1,65 @@
+:root {
+  /* CloudNest colour palette */
+  --color-navy: #071739;
+  --color-slate: #4b6382;
+  --color-mist: #a4b5c4;
+  --color-cloud: #cdd5db;
+  --color-taupe: #a68868;
+  --color-sand: #e3c39d;
+
+  /* Supporting colours */
+  --color-white: #ffffff;
+  --color-black: #111827;
+  --color-success: #2e7d5b;
+  --color-danger: #c94b4b;
+  --color-warning: #d99032;
+
+  /* Backgrounds */
+  --background-primary: #f7f4f1;
+  --background-secondary: #eef1f5;
+  --background-card: rgba(255, 255, 255, 0.84);
+  --background-sidebar: var(--color-navy);
+
+  /* Text */
+  --text-primary: #17213a;
+  --text-secondary: #5d6677;
+  --text-light: #ffffff;
+  --text-muted: #7b8494;
+
+  /* Borders */
+  --border-light: rgba(75, 99, 130, 0.16);
+  --border-medium: rgba(75, 99, 130, 0.32);
+
+  /* Shadows */
+  --shadow-small: 0 4px 12px rgba(7, 23, 57, 0.08);
+  --shadow-medium: 0 10px 30px rgba(7, 23, 57, 0.12);
+  --shadow-large: 0 20px 50px rgba(7, 23, 57, 0.16);
+  --shadow-inset: inset 0 1px 2px rgba(255, 255, 255, 0.8);
+
+  /* Radius */
+  --radius-small: 10px;
+  --radius-medium: 16px;
+  --radius-large: 24px;
+  --radius-round: 999px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Layout */
+  --sidebar-width: 250px;
+  --header-height: 80px;
+  --content-max-width: 1500px;
+
+  /* Animation */
+  --transition-fast: 160ms ease;
+  --transition-normal: 260ms ease;
+  --transition-slow: 420ms ease;
+}

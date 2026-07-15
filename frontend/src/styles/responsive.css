@@ -1,0 +1,30 @@
+@media (max-width: 1200px) {
+  :root {
+    --sidebar-width: 220px;
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --sidebar-width: 0px;
+  }
+
+  body {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 600px) {
+  :root {
+    --space-8: 24px;
+    --space-10: 32px;
+    --space-12: 40px;
+    --radius-large: 20px;
+  }
+
+  .primary-button,
+  .secondary-button {
+    min-height: 44px;
+    padding: 0 16px;
+  }
+}
