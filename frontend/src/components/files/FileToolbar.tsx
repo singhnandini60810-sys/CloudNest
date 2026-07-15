@@ -40,7 +40,6 @@ function FileToolbar({
           placeholder="Search your files..."
           value={searchTerm}
           onChange={(event) => onSearchChange(event.target.value)}
-          aria-label="Search your files"
         />
       </label>
 
@@ -59,7 +58,6 @@ function FileToolbar({
             <option value="video">Videos</option>
             <option value="audio">Audio</option>
             <option value="archive">Archives</option>
-            <option value="other">Other files</option>
           </select>
         </label>
 
@@ -78,7 +76,7 @@ function FileToolbar({
           </select>
         </label>
 
-        <div className="file-toolbar__view" aria-label="File view options">
+        <div className="file-toolbar__view" aria-label="Choose file view">
           <button
             type="button"
             className={viewMode === "grid" ? "active" : ""}

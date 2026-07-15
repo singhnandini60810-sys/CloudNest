@@ -1,11 +1,19 @@
 import { CloudUpload } from "lucide-react";
 import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
+import { useNavigate } from "react-router-dom";
 
 function QuickUpload() {
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    console.log("Selected files:", acceptedFiles);
-  }, []);
+  const navigate = useNavigate();
+
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length > 0) {
+        navigate("/files");
+      }
+    },
+    [navigate],
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -40,7 +48,14 @@ function QuickUpload() {
 
         <span>or</span>
 
-        <button type="button" className="primary-button">
+        <button
+          type="button"
+          className="primary-button"
+          onClick={(event) => {
+            event.stopPropagation();
+            navigate("/files");
+          }}
+        >
           Browse Files
         </button>
 

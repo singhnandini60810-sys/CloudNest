@@ -1,4 +1,5 @@
 import { Cloud, Sparkles, Upload } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import AssistantPanel from "../components/assistants/AssistantPanel";
 import FileTypeChart from "../components/dashboard/FileTypeChart";
 import QuickUpload from "../components/dashboard/QuickUpload";
@@ -9,6 +10,8 @@ import StorageOverview from "../components/dashboard/StorageOverview";
 import DashboardLayout from "../components/layout/DashboardLayout";
 
 function DashboardPage() {
+  const navigate = useNavigate();
+
   return (
     <DashboardLayout>
       <section className="dashboard-welcome">
@@ -25,7 +28,11 @@ function DashboardPage() {
             cloud workspace.
           </p>
 
-          <button className="primary-button" type="button">
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => navigate("/files")}
+          >
             <Upload size={19} />
             Upload File
           </button>
