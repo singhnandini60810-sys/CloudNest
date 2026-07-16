@@ -1,11 +1,33 @@
 import { Cloud, Crown, LogOut } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   mainNavigation,
   secondaryNavigation,
 } from "../../config/navigation";
+import useAuth from "../../hooks/useAuth";
 
 function Sidebar() {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const displayName = user?.name ?? "CloudNest User";
+
+  const initials = displayName
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const handleLogout = () => {
+    logout();
+
+    navigate("/login", {
+      replace: true,
+    });
+  };
+
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
@@ -20,11 +42,11 @@ function Sidebar() {
       </div>
 
       <div className="sidebar__profile">
-        <div className="sidebar__avatar">NS</div>
+        <div className="sidebar__avatar">{initials}</div>
 
         <div className="sidebar__profile-text">
-          <strong>Nandini Singh</strong>
-          <span>Free account</span>
+          <strong>{displayName}</strong>
+          <span>{user?.email ?? "Free account"}</span>
         </div>
       </div>
 
@@ -90,7 +112,11 @@ function Sidebar() {
         <button type="button">Upgrade Storage</button>
       </div>
 
-      <button className="sidebar__logout" type="button">
+      <button
+        className="sidebar__logout"
+        type="button"
+        onClick={handleLogout}
+      >
         <LogOut size={19} />
         <span>Log out</span>
       </button>

@@ -6,12 +6,18 @@ import {
   User,
   UserPlus,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import {
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AuthLayout from "../components/auth/AuthLayout";
+import useAuth from "../hooks/useAuth";
 
 function RegisterPage() {
   const navigate = useNavigate();
+  const { register } = useAuth();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -20,19 +26,33 @@ function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const passwordStrength = useMemo(() => {
     let score = 0;
 
-    if (password.length >= 8) score += 1;
-    if (/[A-Z]/.test(password)) score += 1;
-    if (/[0-9]/.test(password)) score += 1;
-    if (/[^A-Za-z0-9]/.test(password)) score += 1;
+    if (password.length >= 8) {
+      score += 1;
+    }
+
+    if (/[A-Z]/.test(password)) {
+      score += 1;
+    }
+
+    if (/[0-9]/.test(password)) {
+      score += 1;
+    }
+
+    if (/[^A-Za-z0-9]/.test(password)) {
+      score += 1;
+    }
 
     return score;
   }, [password]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     setError("");
 
@@ -56,13 +76,29 @@ function RegisterPage() {
       return;
     }
 
-    /*
-      Temporary frontend navigation.
-      Cognito registration will replace this during AWS integration.
-    */
-    navigate("/verify-email", {
-      state: { email },
-    });
+    setIsSubmitting(true);
+
+    try {
+      await register({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        password,
+      });
+
+      navigate("/verify-email", {
+        state: {
+          email: email.trim(),
+        },
+      });
+    } catch (registrationError) {
+      setError(
+        registrationError instanceof Error
+          ? registrationError.message
+          : "Unable to create your account.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -89,6 +125,7 @@ function RegisterPage() {
               onChange={(event) => setFullName(event.target.value)}
               placeholder="Enter your full name"
               autoComplete="name"
+              required
             />
           </div>
         </label>
@@ -105,6 +142,7 @@ function RegisterPage() {
               onChange={(event) => setEmail(event.target.value)}
               placeholder="name@example.com"
               autoComplete="email"
+              required
             />
           </div>
         </label>
@@ -121,13 +159,18 @@ function RegisterPage() {
               onChange={(event) => setPassword(event.target.value)}
               placeholder="Create a strong password"
               autoComplete="new-password"
+              required
             />
 
             <button
               type="button"
               className="auth-input__action"
-              onClick={() => setShowPassword((current) => !current)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() =>
+                setShowPassword((current) => !current)
+              }
+              aria-label={
+                showPassword ? "Hide password" : "Show password"
+              }
             >
               {showPassword ? (
                 <EyeOff size={19} />
@@ -168,9 +211,12 @@ function RegisterPage() {
             <input
               type={showPassword ? "text" : "password"}
               value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
+              onChange={(event) =>
+                setConfirmPassword(event.target.value)
+              }
               placeholder="Enter your password again"
               autoComplete="new-password"
+              required
             />
           </div>
         </label>
@@ -179,22 +225,39 @@ function RegisterPage() {
           <input
             type="checkbox"
             checked={acceptedTerms}
-            onChange={(event) => setAcceptedTerms(event.target.checked)}
+            onChange={(event) =>
+              setAcceptedTerms(event.target.checked)
+            }
           />
 
           <span>
-            I agree to the <button type="button">Terms of Service</button> and{" "}
-            <button type="button">Privacy Policy</button>.
+            I agree to the{" "}
+            <button type="button">
+              Terms of Service
+            </button>{" "}
+            and{" "}
+            <button type="button">
+              Privacy Policy
+            </button>
+            .
           </span>
         </label>
 
-        <button className="primary-button auth-submit" type="submit">
+        <button
+          className="primary-button auth-submit"
+          type="submit"
+          disabled={isSubmitting}
+        >
           <UserPlus size={19} />
-          Create Account
+
+          {isSubmitting
+            ? "Creating account..."
+            : "Create Account"}
         </button>
 
         <p className="auth-switch">
-          Already have an account? <Link to="/login">Sign in</Link>
+          Already have an account?{" "}
+          <Link to="/login">Sign in</Link>
         </p>
       </form>
     </AuthLayout>

@@ -6,32 +6,61 @@ import {
   Mail,
 } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import AuthLayout from "../components/auth/AuthLayout";
+import useAuth from "../hooks/useAuth";
+
+interface LoginLocationState {
+  from?: string;
+  accountVerified?: boolean;
+  passwordReset?: boolean;
+}
 
 function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+
+  const locationState =
+    location.state as LoginLocationState | null;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     setError("");
+    setIsSubmitting(true);
 
-    if (!email.trim() || !password.trim()) {
-      setError("Please enter your email address and password.");
-      return;
+    try {
+      await login({
+        email,
+        password,
+        rememberMe,
+      });
+
+      navigate(locationState?.from ?? "/", {
+        replace: true,
+      });
+    } catch (loginError) {
+      setError(
+        loginError instanceof Error
+          ? loginError.message
+          : "Unable to sign in.",
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-
-    /*
-      Temporary frontend navigation.
-      Amazon Cognito authentication will replace this in the AWS phase.
-    */
-    navigate("/");
   };
 
   return (
@@ -40,6 +69,18 @@ function LoginPage() {
       description="Sign in to continue to your CloudNest workspace."
     >
       <form className="auth-form" onSubmit={handleSubmit}>
+        {locationState?.accountVerified && (
+          <div className="auth-success-alert">
+            Your account has been verified. You can now sign in.
+          </div>
+        )}
+
+        {locationState?.passwordReset && (
+          <div className="auth-success-alert">
+            Your password has been reset successfully.
+          </div>
+        )}
+
         {error && (
           <div className="auth-alert" role="alert">
             {error}
@@ -58,6 +99,7 @@ function LoginPage() {
               onChange={(event) => setEmail(event.target.value)}
               placeholder="name@example.com"
               autoComplete="email"
+              required
             />
           </div>
         </label>
@@ -78,13 +120,18 @@ function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
               placeholder="Enter your password"
               autoComplete="current-password"
+              required
             />
 
             <button
               type="button"
               className="auth-input__action"
-              onClick={() => setShowPassword((current) => !current)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() =>
+                setShowPassword((current) => !current)
+              }
+              aria-label={
+                showPassword ? "Hide password" : "Show password"
+              }
             >
               {showPassword ? (
                 <EyeOff size={19} />
@@ -99,22 +146,33 @@ function LoginPage() {
           <input
             type="checkbox"
             checked={rememberMe}
-            onChange={(event) => setRememberMe(event.target.checked)}
+            onChange={(event) =>
+              setRememberMe(event.target.checked)
+            }
           />
 
           <span>Keep me signed in</span>
         </label>
 
-        <button className="primary-button auth-submit" type="submit">
+        <button
+          className="primary-button auth-submit"
+          type="submit"
+          disabled={isSubmitting}
+        >
           <LogIn size={19} />
-          Sign In
+          {isSubmitting ? "Signing in..." : "Sign In"}
         </button>
 
         <div className="auth-divider">
           <span>or continue with</span>
         </div>
 
-        <button className="auth-google-button" type="button">
+        <button
+          className="auth-google-button"
+          type="button"
+          disabled
+          title="Google sign-in will be connected through Amazon Cognito."
+        >
           <span className="auth-google-button__logo">G</span>
           Continue with Google
         </button>

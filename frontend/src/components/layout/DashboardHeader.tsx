@@ -1,10 +1,32 @@
-import { Bell, ChevronDown, Menu, Search } from "lucide-react";
+import {
+  Bell,
+  ChevronDown,
+  Menu,
+  Search,
+} from "lucide-react";
+import useAuth from "../../hooks/useAuth";
 
 interface DashboardHeaderProps {
   onMenuClick: () => void;
 }
 
-function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
+function DashboardHeader({
+  onMenuClick,
+}: DashboardHeaderProps) {
+  const { user } = useAuth();
+
+  const displayName = user?.name ?? "CloudNest User";
+
+  const initials = displayName
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const firstName = displayName.split(" ")[0] || "User";
+
   return (
     <header className="dashboard-header">
       <button
@@ -36,12 +58,18 @@ function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
           <span>3</span>
         </button>
 
-        <button type="button" className="dashboard-header__profile">
-          <div className="dashboard-header__avatar">NS</div>
+        <button
+          type="button"
+          className="dashboard-header__profile"
+          aria-label="Open account menu"
+        >
+          <div className="dashboard-header__avatar">
+            {initials}
+          </div>
 
           <div className="dashboard-header__profile-text">
-            <strong>Nandini</strong>
-            <span>My account</span>
+            <strong>{firstName}</strong>
+            <span>{user?.email ?? "My account"}</span>
           </div>
 
           <ChevronDown size={17} />

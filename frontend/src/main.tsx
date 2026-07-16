@@ -12,11 +12,14 @@ import "./styles/dashboard.css";
 import "./styles/files.css";
 import "./styles/modals.css";
 import "./styles/auth.css";
+import AuthProvider from "./context/AuthContext";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,
 );
