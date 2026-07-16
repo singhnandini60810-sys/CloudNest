@@ -470,3 +470,126 @@
     margin-bottom: 32px;
   }
 }
+.auth-information-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 13px;
+  padding: 14px;
+  border: 1px solid rgba(75, 99, 130, 0.12);
+  border-radius: 16px;
+  background: rgba(205, 213, 219, 0.32);
+}
+
+.auth-information-card__icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 15px;
+  background: white;
+  color: var(--color-navy);
+  box-shadow: var(--shadow-small);
+}
+
+.auth-information-card strong {
+  display: block;
+  color: var(--color-navy);
+  font-size: 0.84rem;
+}
+
+.auth-information-card p {
+  margin-top: 3px;
+  font-size: 0.73rem;
+}
+
+.auth-information-card b {
+  color: var(--color-navy);
+}
+
+.auth-back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--color-slate);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.auth-back-link:hover {
+  color: var(--color-navy);
+}
+
+.auth-success-alert {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 1px solid rgba(46, 125, 91, 0.2);
+  border-radius: 13px;
+  background: rgba(46, 125, 91, 0.1);
+  color: var(--color-success);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.verification-code {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.verification-code input {
+  min-width: 0;
+  height: 58px;
+  padding: 0;
+  border: 1px solid var(--border-medium);
+  border-radius: 15px;
+  background: white;
+  color: var(--color-navy);
+  font-family: "Poppins", sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.verification-code input:focus {
+  border-color: var(--color-slate);
+  box-shadow: 0 0 0 4px rgba(75, 99, 130, 0.12);
+}
+
+.auth-resend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.auth-resend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-slate);
+  font-size: inherit;
+  font-weight: 800;
+}
+
+.auth-resend button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 440px) {
+  .verification-code {
+    gap: 6px;
+  }
+
+  .verification-code input {
+    height: 50px;
+    border-radius: 12px;
+    font-size: 1.1rem;
+  }
+}
