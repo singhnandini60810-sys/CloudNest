@@ -61,6 +61,7 @@ interface AuthContextValue {
   ) => Promise<void>;
 
   logout: () => Promise<void>;
+
   refreshUser: () => Promise<void>;
 }
 
@@ -104,12 +105,24 @@ function getReadableAuthError(error: unknown): string {
     case "TooManyRequestsException":
       return "Too many requests were made. Please try again shortly.";
 
+    case "PasswordResetRequiredException":
+      return "You must reset your password before signing in.";
+
+    case "InvalidParameterException":
+      return "Some authentication information is invalid. Please check your details.";
+
     default:
       return error.message || "Authentication failed. Please try again.";
   }
 }
 
-export function AuthProvider({ children }: AuthProviderProps) {
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+export function AuthProvider({
+  children,
+}: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -118,13 +131,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const currentUser = await getCurrentUser();
       const attributes = await fetchUserAttributes();
 
+      const email =
+        attributes.email ??
+        currentUser.signInDetails?.loginId ??
+        currentUser.username;
+
+      const name =
+        attributes.name ??
+        email.split("@")[0] ??
+        "CloudNest User";
+
       setUser({
         id: currentUser.userId,
-        name:
-          attributes.name ??
-          attributes.email?.split("@")[0] ??
-          "CloudNest User",
-        email: attributes.email ?? currentUser.username,
+        name,
+        email,
       });
     } catch {
       setUser(null);
@@ -148,23 +168,41 @@ export function AuthProvider({ children }: AuthProviderProps) {
     password,
   }: LoginCredentials) => {
     try {
+      const normalizedEmail = normalizeEmail(email);
+
+      if (!normalizedEmail || !password) {
+        throw new Error(
+          "Please enter your email address and password.",
+        );
+      }
+
       const result = await signIn({
-        username: email.trim(),
+        username: normalizedEmail,
         password,
       });
 
       if (!result.isSignedIn) {
-        if (
-          result.nextStep.signInStep === "CONFIRM_SIGN_UP"
-        ) {
-          throw new Error(
-            "Please verify your email address before signing in.",
-          );
-        }
+        switch (result.nextStep.signInStep) {
+          case "CONFIRM_SIGN_UP":
+            throw new Error(
+              "Please verify your email address before signing in.",
+            );
 
-        throw new Error(
-          `Additional sign-in action is required: ${result.nextStep.signInStep}`,
-        );
+          case "RESET_PASSWORD":
+            throw new Error(
+              "You must reset your password before signing in.",
+            );
+
+          case "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED":
+            throw new Error(
+              "A new password is required before you can continue.",
+            );
+
+          default:
+            throw new Error(
+              `Additional sign-in action is required: ${result.nextStep.signInStep}`,
+            );
+        }
       }
 
       await refreshUser();
@@ -179,13 +217,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     password,
   }: RegisterDetails) => {
     try {
+      const normalizedEmail = normalizeEmail(email);
+      const normalizedName = fullName.trim();
+
+      if (!normalizedName || !normalizedEmail || !password) {
+        throw new Error(
+          "Please complete all registration fields.",
+        );
+      }
+
       const result = await signUp({
-        username: email.trim(),
+        username: normalizedEmail,
         password,
         options: {
           userAttributes: {
-            email: email.trim(),
-            name: fullName.trim(),
+            email: normalizedEmail,
+            name: normalizedName,
           },
         },
       });
@@ -208,29 +255,60 @@ export function AuthProvider({ children }: AuthProviderProps) {
     confirmationCode: string,
   ) => {
     try {
-      await confirmSignUp({
-        username: email.trim(),
-        confirmationCode: confirmationCode.trim(),
+      const normalizedEmail = normalizeEmail(email);
+      const normalizedCode = confirmationCode.trim();
+
+      if (!normalizedEmail || !normalizedCode) {
+        throw new Error(
+          "Email address and verification code are required.",
+        );
+      }
+
+      const result = await confirmSignUp({
+        username: normalizedEmail,
+        confirmationCode: normalizedCode,
       });
+
+      if (!result.isSignUpComplete) {
+        throw new Error(
+          `Additional verification action is required: ${result.nextStep.signUpStep}`,
+        );
+      }
     } catch (error) {
       throw new Error(getReadableAuthError(error));
     }
   };
 
-  const resendVerificationCode = async (email: string) => {
+  const resendVerificationCode = async (
+    email: string,
+  ) => {
     try {
+      const normalizedEmail = normalizeEmail(email);
+
+      if (!normalizedEmail) {
+        throw new Error("Email address is required.");
+      }
+
       await resendSignUpCode({
-        username: email.trim(),
+        username: normalizedEmail,
       });
     } catch (error) {
       throw new Error(getReadableAuthError(error));
     }
   };
 
-  const requestPasswordReset = async (email: string) => {
+  const requestPasswordReset = async (
+    email: string,
+  ) => {
     try {
+      const normalizedEmail = normalizeEmail(email);
+
+      if (!normalizedEmail) {
+        throw new Error("Email address is required.");
+      }
+
       const result = await resetPassword({
-        username: email.trim(),
+        username: normalizedEmail,
       });
 
       if (
@@ -253,9 +331,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     newPassword: string,
   ) => {
     try {
+      const normalizedEmail = normalizeEmail(email);
+      const normalizedCode = confirmationCode.trim();
+
+      if (
+        !normalizedEmail ||
+        !normalizedCode ||
+        !newPassword
+      ) {
+        throw new Error(
+          "Email, verification code and new password are required.",
+        );
+      }
+
       await confirmResetPassword({
-        username: email.trim(),
-        confirmationCode: confirmationCode.trim(),
+        username: normalizedEmail,
+        confirmationCode: normalizedCode,
         newPassword,
       });
     } catch (error) {
