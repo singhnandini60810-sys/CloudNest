@@ -13,6 +13,7 @@ import "./styles/files.css";
 import "./styles/modals.css";
 import "./styles/auth.css";
 import AuthProvider from "./context/AuthContext";
+import "./config/awsConfig";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
