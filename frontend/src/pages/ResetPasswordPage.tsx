@@ -5,9 +5,18 @@ import {
   KeyRound,
   LockKeyhole,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import {
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import AuthLayout from "../components/auth/AuthLayout";
+import useAuth from "../hooks/useAuth";
 
 interface ResetPasswordLocationState {
   email?: string;
@@ -17,31 +26,62 @@ function ResetPasswordPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const { completePasswordReset } = useAuth();
+
   const locationState =
     location.state as ResetPasswordLocationState | null;
 
   const email = locationState?.email ?? "";
 
-  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationCode, setVerificationCode] =
+    useState("");
+
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] =
+    useState("");
+
+  const [showPassword, setShowPassword] =
+    useState(false);
+
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
 
   const passwordStrength = useMemo(() => {
     let score = 0;
 
-    if (password.length >= 8) score += 1;
-    if (/[A-Z]/.test(password)) score += 1;
-    if (/[0-9]/.test(password)) score += 1;
-    if (/[^A-Za-z0-9]/.test(password)) score += 1;
+    if (password.length >= 8) {
+      score += 1;
+    }
+
+    if (/[A-Z]/.test(password)) {
+      score += 1;
+    }
+
+    if (/[0-9]/.test(password)) {
+      score += 1;
+    }
+
+    if (/[^A-Za-z0-9]/.test(password)) {
+      score += 1;
+    }
 
     return score;
   }, [password]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
+
     setError("");
+
+    if (!email) {
+      setError(
+        "Your email address is missing. Please restart password recovery.",
+      );
+      return;
+    }
 
     if (verificationCode.length !== 6) {
       setError("Please enter the 6-digit reset code.");
@@ -49,7 +89,37 @@ function ResetPasswordPage() {
     }
 
     if (password.length < 8) {
-      setError("Your password must contain at least 8 characters.");
+      setError(
+        "Your password must contain at least 8 characters.",
+      );
+      return;
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      setError(
+        "Your password must contain an uppercase letter.",
+      );
+      return;
+    }
+
+    if (!/[a-z]/.test(password)) {
+      setError(
+        "Your password must contain a lowercase letter.",
+      );
+      return;
+    }
+
+    if (!/[0-9]/.test(password)) {
+      setError(
+        "Your password must contain a number.",
+      );
+      return;
+    }
+
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      setError(
+        "Your password must contain a special character.",
+      );
       return;
     }
 
@@ -58,11 +128,30 @@ function ResetPasswordPage() {
       return;
     }
 
-    navigate("/login", {
-      state: {
-        passwordReset: true,
-      },
-    });
+    setIsSubmitting(true);
+
+    try {
+      await completePasswordReset(
+        email,
+        verificationCode,
+        password,
+      );
+
+      navigate("/login", {
+        replace: true,
+        state: {
+          passwordReset: true,
+        },
+      });
+    } catch (resetError) {
+      setError(
+        resetError instanceof Error
+          ? resetError.message
+          : "Unable to reset your password.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -81,6 +170,13 @@ function ResetPasswordPage() {
           </div>
         )}
 
+        {!email && (
+          <div className="auth-alert" role="alert">
+            Your email address is missing. Please restart the
+            password recovery process.
+          </div>
+        )}
+
         <div className="auth-information-card">
           <div className="auth-information-card__icon">
             <KeyRound size={24} />
@@ -88,9 +184,10 @@ function ResetPasswordPage() {
 
           <div>
             <strong>Secure password reset</strong>
+
             <p>
-              Your new password should be different from your previous
-              password.
+              Your new password should be different from your
+              previous password.
             </p>
           </div>
         </div>
@@ -107,12 +204,17 @@ function ResetPasswordPage() {
               value={verificationCode}
               onChange={(event) =>
                 setVerificationCode(
-                  event.target.value.replace(/\D/g, "").slice(0, 6),
+                  event.target.value
+                    .replace(/\D/g, "")
+                    .slice(0, 6),
                 )
               }
               placeholder="Enter 6-digit code"
               maxLength={6}
+              autoComplete="one-time-code"
               autoFocus
+              required
+              disabled={isSubmitting || !email}
             />
           </div>
         </label>
@@ -124,18 +226,33 @@ function ResetPasswordPage() {
             <LockKeyhole size={19} />
 
             <input
-              type={showPassword ? "text" : "password"}
+              type={
+                showPassword ? "text" : "password"
+              }
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
               placeholder="Create a new password"
               autoComplete="new-password"
+              required
+              disabled={isSubmitting || !email}
             />
 
             <button
               type="button"
               className="auth-input__action"
-              onClick={() => setShowPassword((current) => !current)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() =>
+                setShowPassword(
+                  (currentValue) => !currentValue,
+                )
+              }
+              aria-label={
+                showPassword
+                  ? "Hide password"
+                  : "Show password"
+              }
+              disabled={isSubmitting}
             >
               {showPassword ? (
                 <EyeOff size={19} />
@@ -161,7 +278,8 @@ function ResetPasswordPage() {
               </div>
 
               <small>
-                Use 8+ characters with uppercase, number and symbol.
+                Use 8+ characters with uppercase, lowercase,
+                number and symbol.
               </small>
             </div>
           )}
@@ -174,19 +292,39 @@ function ResetPasswordPage() {
             <LockKeyhole size={19} />
 
             <input
-              type={showPassword ? "text" : "password"}
+              type={
+                showPassword ? "text" : "password"
+              }
               value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
+              onChange={(event) =>
+                setConfirmPassword(event.target.value)
+              }
               placeholder="Enter the new password again"
               autoComplete="new-password"
+              required
+              disabled={isSubmitting || !email}
             />
           </div>
         </label>
 
-        <button className="primary-button auth-submit" type="submit">
+        <button
+          className="primary-button auth-submit"
+          type="submit"
+          disabled={isSubmitting || !email}
+        >
           <CheckCircle2 size={19} />
-          Reset Password
+
+          {isSubmitting
+            ? "Resetting..."
+            : "Reset Password"}
         </button>
+
+        <Link
+          className="auth-back-link"
+          to="/forgot-password"
+        >
+          Restart password recovery
+        </Link>
       </form>
     </AuthLayout>
   );

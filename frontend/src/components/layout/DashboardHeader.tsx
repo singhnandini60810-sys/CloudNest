@@ -15,17 +15,19 @@ function DashboardHeader({
 }: DashboardHeaderProps) {
   const { user } = useAuth();
 
-  const displayName = user?.name ?? "CloudNest User";
+  const displayName =
+    user?.name?.trim() || "CloudNest User";
+
+  const firstName =
+    displayName.split(/\s+/)[0] || "User";
 
   const initials = displayName
-    .split(" ")
+    .split(/\s+/)
     .filter(Boolean)
-    .map((part) => part[0])
+    .map((part) => part.charAt(0))
     .join("")
     .slice(0, 2)
     .toUpperCase();
-
-  const firstName = displayName.split(" ")[0] || "User";
 
   return (
     <header className="dashboard-header">
@@ -64,12 +66,12 @@ function DashboardHeader({
           aria-label="Open account menu"
         >
           <div className="dashboard-header__avatar">
-            {initials}
+            {initials || "CN"}
           </div>
 
           <div className="dashboard-header__profile-text">
             <strong>{firstName}</strong>
-            <span>{user?.email ?? "My account"}</span>
+            <span>My account</span>
           </div>
 
           <ChevronDown size={17} />

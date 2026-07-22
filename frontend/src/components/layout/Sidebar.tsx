@@ -1,5 +1,12 @@
-import { Cloud, Crown, LogOut } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+import {
+  Cloud,
+  Crown,
+  LogOut,
+} from "lucide-react";
+import {
+  NavLink,
+  useNavigate,
+} from "react-router-dom";
 import {
   mainNavigation,
   secondaryNavigation,
@@ -10,22 +17,27 @@ function Sidebar() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const displayName = user?.name ?? "CloudNest User";
+  const displayName =
+    user?.name?.trim() || "CloudNest User";
 
   const initials = displayName
-    .split(" ")
+    .split(/\s+/)
     .filter(Boolean)
-    .map((part) => part[0])
+    .map((part) => part.charAt(0))
     .join("")
     .slice(0, 2)
     .toUpperCase();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    try {
+      await logout();
 
-    navigate("/login", {
-      replace: true,
-    });
+      navigate("/login", {
+        replace: true,
+      });
+    } catch (error) {
+      console.error("Unable to log out:", error);
+    }
   };
 
   return (
@@ -42,15 +54,25 @@ function Sidebar() {
       </div>
 
       <div className="sidebar__profile">
-        <div className="sidebar__avatar">{initials}</div>
+        <div className="sidebar__avatar">
+          {initials || "CN"}
+        </div>
 
         <div className="sidebar__profile-text">
-          <strong>{displayName}</strong>
-          <span>{user?.email ?? "Free account"}</span>
+          <strong title={displayName}>
+            {displayName}
+          </strong>
+
+          <span title={user?.email}>
+            {user?.email ?? "Authenticated user"}
+          </span>
         </div>
       </div>
 
-      <nav className="sidebar__navigation" aria-label="Main navigation">
+      <nav
+        className="sidebar__navigation"
+        aria-label="Main navigation"
+      >
         <div className="sidebar__nav-group">
           {mainNavigation.map((item) => {
             const Icon = item.icon;
@@ -62,7 +84,9 @@ function Sidebar() {
                 end={item.path === "/"}
                 className={({ isActive }) =>
                   `sidebar__nav-link ${
-                    isActive ? "sidebar__nav-link--active" : ""
+                    isActive
+                      ? "sidebar__nav-link--active"
+                      : ""
                   }`
                 }
               >
@@ -85,7 +109,9 @@ function Sidebar() {
                 to={item.path}
                 className={({ isActive }) =>
                   `sidebar__nav-link ${
-                    isActive ? "sidebar__nav-link--active" : ""
+                    isActive
+                      ? "sidebar__nav-link--active"
+                      : ""
                   }`
                 }
               >
@@ -109,13 +135,17 @@ function Sidebar() {
           <span />
         </div>
 
-        <button type="button">Upgrade Storage</button>
+        <button type="button">
+          Upgrade Storage
+        </button>
       </div>
 
       <button
         className="sidebar__logout"
         type="button"
-        onClick={handleLogout}
+        onClick={() => {
+          void handleLogout();
+        }}
       >
         <LogOut size={19} />
         <span>Log out</span>
