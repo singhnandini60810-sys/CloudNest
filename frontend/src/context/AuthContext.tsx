@@ -1,5 +1,17 @@
 import {
+  confirmResetPassword,
+  confirmSignUp,
+  fetchUserAttributes,
+  getCurrentUser,
+  resendSignUpCode,
+  resetPassword,
+  signIn,
+  signOut,
+  signUp,
+} from "aws-amplify/auth";
+import {
   createContext,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -28,96 +40,137 @@ interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+
   login: (credentials: LoginCredentials) => Promise<void>;
+
   register: (details: RegisterDetails) => Promise<void>;
-  logout: () => void;
+
+  verifyEmail: (
+    email: string,
+    confirmationCode: string,
+  ) => Promise<void>;
+
+  resendVerificationCode: (email: string) => Promise<void>;
+
+  requestPasswordReset: (email: string) => Promise<void>;
+
+  completePasswordReset: (
+    email: string,
+    confirmationCode: string,
+    newPassword: string,
+  ) => Promise<void>;
+
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
-const AUTH_STORAGE_KEY = "cloudnest-auth-user";
-const PENDING_REGISTRATION_KEY = "cloudnest-pending-registration";
+export const AuthContext =
+  createContext<AuthContextValue | undefined>(undefined);
 
-export const AuthContext = createContext<AuthContextValue | undefined>(
-  undefined,
-);
+function getReadableAuthError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "An unexpected authentication error occurred.";
+  }
 
-function createUser(name: string, email: string): AuthUser {
-  return {
-    id: `user-${Date.now()}`,
-    name,
-    email,
-  };
+  switch (error.name) {
+    case "UsernameExistsException":
+      return "An account with this email address already exists.";
+
+    case "UserNotFoundException":
+      return "No CloudNest account was found for this email address.";
+
+    case "NotAuthorizedException":
+      return "The email address or password is incorrect.";
+
+    case "UserNotConfirmedException":
+      return "Please verify your email address before signing in.";
+
+    case "CodeMismatchException":
+      return "The verification code is incorrect.";
+
+    case "ExpiredCodeException":
+      return "The verification code has expired. Request a new code.";
+
+    case "InvalidPasswordException":
+      return "The password does not meet CloudNest security requirements.";
+
+    case "LimitExceededException":
+      return "Too many attempts were made. Please wait before trying again.";
+
+    case "TooManyRequestsException":
+      return "Too many requests were made. Please try again shortly.";
+
+    default:
+      return error.message || "Authentication failed. Please try again.";
+  }
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  const refreshUser = useCallback(async () => {
     try {
-      const storedUser =
-        localStorage.getItem(AUTH_STORAGE_KEY) ??
-        sessionStorage.getItem(AUTH_STORAGE_KEY);
+      const currentUser = await getCurrentUser();
+      const attributes = await fetchUserAttributes();
 
-      if (storedUser) {
-        setUser(JSON.parse(storedUser) as AuthUser);
-      }
+      setUser({
+        id: currentUser.userId,
+        name:
+          attributes.name ??
+          attributes.email?.split("@")[0] ??
+          "CloudNest User",
+        email: attributes.email ?? currentUser.username,
+      });
     } catch {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      sessionStorage.removeItem(AUTH_STORAGE_KEY);
-    } finally {
-      setIsLoading(false);
+      setUser(null);
     }
   }, []);
+
+  useEffect(() => {
+    const initializeAuthentication = async () => {
+      try {
+        await refreshUser();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void initializeAuthentication();
+  }, [refreshUser]);
 
   const login = async ({
     email,
     password,
-    rememberMe,
   }: LoginCredentials) => {
-    if (!email.trim() || !password.trim()) {
-      throw new Error("Please enter your email and password.");
-    }
+    try {
+      const result = await signIn({
+        username: email.trim(),
+        password,
+      });
 
-    await new Promise((resolve) => window.setTimeout(resolve, 600));
-
-    const pendingRegistration = localStorage.getItem(
-      PENDING_REGISTRATION_KEY,
-    );
-
-    let name = email.split("@")[0];
-
-    if (pendingRegistration) {
-      try {
-        const registration = JSON.parse(pendingRegistration) as {
-          fullName?: string;
-          email?: string;
-        };
-
-        if (registration.email === email && registration.fullName) {
-          name = registration.fullName;
+      if (!result.isSignedIn) {
+        if (
+          result.nextStep.signInStep === "CONFIRM_SIGN_UP"
+        ) {
+          throw new Error(
+            "Please verify your email address before signing in.",
+          );
         }
-      } catch {
-        localStorage.removeItem(PENDING_REGISTRATION_KEY);
+
+        throw new Error(
+          `Additional sign-in action is required: ${result.nextStep.signInStep}`,
+        );
       }
+
+      await refreshUser();
+    } catch (error) {
+      throw new Error(getReadableAuthError(error));
     }
-
-    const authenticatedUser = createUser(name, email);
-
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    sessionStorage.removeItem(AUTH_STORAGE_KEY);
-
-    const storage = rememberMe ? localStorage : sessionStorage;
-
-    storage.setItem(
-      AUTH_STORAGE_KEY,
-      JSON.stringify(authenticatedUser),
-    );
-
-    setUser(authenticatedUser);
   };
 
   const register = async ({
@@ -125,25 +178,97 @@ export function AuthProvider({ children }: AuthProviderProps) {
     email,
     password,
   }: RegisterDetails) => {
-    if (!fullName.trim() || !email.trim() || !password.trim()) {
-      throw new Error("Please complete all registration fields.");
+    try {
+      const result = await signUp({
+        username: email.trim(),
+        password,
+        options: {
+          userAttributes: {
+            email: email.trim(),
+            name: fullName.trim(),
+          },
+        },
+      });
+
+      if (
+        result.nextStep.signUpStep !== "CONFIRM_SIGN_UP" &&
+        result.nextStep.signUpStep !== "DONE"
+      ) {
+        throw new Error(
+          `Unexpected registration step: ${result.nextStep.signUpStep}`,
+        );
+      }
+    } catch (error) {
+      throw new Error(getReadableAuthError(error));
     }
-
-    await new Promise((resolve) => window.setTimeout(resolve, 600));
-
-    localStorage.setItem(
-      PENDING_REGISTRATION_KEY,
-      JSON.stringify({
-        fullName,
-        email,
-      }),
-    );
   };
 
-  const logout = () => {
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    sessionStorage.removeItem(AUTH_STORAGE_KEY);
-    setUser(null);
+  const verifyEmail = async (
+    email: string,
+    confirmationCode: string,
+  ) => {
+    try {
+      await confirmSignUp({
+        username: email.trim(),
+        confirmationCode: confirmationCode.trim(),
+      });
+    } catch (error) {
+      throw new Error(getReadableAuthError(error));
+    }
+  };
+
+  const resendVerificationCode = async (email: string) => {
+    try {
+      await resendSignUpCode({
+        username: email.trim(),
+      });
+    } catch (error) {
+      throw new Error(getReadableAuthError(error));
+    }
+  };
+
+  const requestPasswordReset = async (email: string) => {
+    try {
+      const result = await resetPassword({
+        username: email.trim(),
+      });
+
+      if (
+        result.nextStep.resetPasswordStep !==
+          "CONFIRM_RESET_PASSWORD_WITH_CODE" &&
+        result.nextStep.resetPasswordStep !== "DONE"
+      ) {
+        throw new Error(
+          `Unexpected password reset step: ${result.nextStep.resetPasswordStep}`,
+        );
+      }
+    } catch (error) {
+      throw new Error(getReadableAuthError(error));
+    }
+  };
+
+  const completePasswordReset = async (
+    email: string,
+    confirmationCode: string,
+    newPassword: string,
+  ) => {
+    try {
+      await confirmResetPassword({
+        username: email.trim(),
+        confirmationCode: confirmationCode.trim(),
+        newPassword,
+      });
+    } catch (error) {
+      throw new Error(getReadableAuthError(error));
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut();
+    } finally {
+      setUser(null);
+    }
   };
 
   const contextValue = useMemo<AuthContextValue>(
@@ -153,9 +278,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isLoading,
       login,
       register,
+      verifyEmail,
+      resendVerificationCode,
+      requestPasswordReset,
+      completePasswordReset,
       logout,
+      refreshUser,
     }),
-    [isLoading, user],
+    [isLoading, refreshUser, user],
   );
 
   return (

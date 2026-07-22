@@ -2,25 +2,49 @@ import { ArrowLeft, Mail, Send } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AuthLayout from "../components/auth/AuthLayout";
+import useAuth from "../hooks/useAuth";
 
 function ForgotPasswordPage() {
   const navigate = useNavigate();
+  const { requestPasswordReset } = useAuth();
 
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
+
     setError("");
 
-    if (!email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
       setError("Please enter your email address.");
       return;
     }
 
-    navigate("/reset-password", {
-      state: { email },
-    });
+    setIsSubmitting(true);
+
+    try {
+      await requestPasswordReset(normalizedEmail);
+
+      navigate("/reset-password", {
+        state: {
+          email: normalizedEmail,
+        },
+      });
+    } catch (resetError) {
+      setError(
+        resetError instanceof Error
+          ? resetError.message
+          : "Unable to send the password reset code.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -42,9 +66,10 @@ function ForgotPasswordPage() {
 
           <div>
             <strong>Reset instructions</strong>
+
             <p>
-              CloudNest will send a verification code to your registered email
-              address.
+              CloudNest will send a verification code to your
+              registered email address.
             </p>
           </div>
         </div>
@@ -58,17 +83,28 @@ function ForgotPasswordPage() {
             <input
               type="email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
               placeholder="name@example.com"
               autoComplete="email"
               autoFocus
+              required
+              disabled={isSubmitting}
             />
           </div>
         </label>
 
-        <button className="primary-button auth-submit" type="submit">
+        <button
+          className="primary-button auth-submit"
+          type="submit"
+          disabled={isSubmitting}
+        >
           <Send size={19} />
-          Send Reset Code
+
+          {isSubmitting
+            ? "Sending..."
+            : "Send Reset Code"}
         </button>
 
         <Link className="auth-back-link" to="/login">
