@@ -1,17 +1,35 @@
-import { CloudUpload, File, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  CloudUpload,
+  File as FileIcon,
+  LoaderCircle,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
+import { uploadCloudNestFile } from "../../services/cloudStorageService";
 import Modal from "../common/Modal";
 
 interface UploadFileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpload: (files: File[]) => void;
+  onUploadComplete?: () => void | Promise<void>;
+}
+
+interface UploadItem {
+  file: File;
+  progress: number;
+  status: "pending" | "uploading" | "success" | "error";
+  error?: string;
 }
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
-function formatFileSize(bytes: number) {
+function getFileKey(file: File): string {
+  return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
+function formatFileSize(bytes: number): string {
   if (bytes < 1024) {
     return `${bytes} B`;
   }
@@ -26,57 +44,147 @@ function formatFileSize(bytes: number) {
 function UploadFileModal({
   isOpen,
   onClose,
-  onUpload,
+  onUploadComplete,
 }: UploadFileModalProps) {
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [generalError, setGeneralError] = useState("");
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    setSelectedFiles((currentFiles) => {
+    setGeneralError("");
+
+    setUploadItems((currentItems) => {
       const existingKeys = new Set(
-        currentFiles.map((file) => `${file.name}-${file.size}`),
+        currentItems.map(({ file }) => getFileKey(file)),
       );
 
-      const uniqueFiles = acceptedFiles.filter(
-        (file) => !existingKeys.has(`${file.name}-${file.size}`),
-      );
+      const newItems: UploadItem[] = acceptedFiles
+        .filter((file) => !existingKeys.has(getFileKey(file)))
+        .map((file) => ({
+          file,
+          progress: 0,
+          status: "pending",
+        }));
 
-      return [...currentFiles, ...uniqueFiles];
+      return [...currentItems, ...newItems];
     });
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive, fileRejections } =
-    useDropzone({
-      onDrop,
-      multiple: true,
-      maxSize: MAX_FILE_SIZE,
-    });
+  const {
+    getRootProps,
+    getInputProps,
+    isDragActive,
+    fileRejections,
+  } = useDropzone({
+    onDrop,
+    multiple: true,
+    maxSize: MAX_FILE_SIZE,
+    disabled: isUploading,
+  });
 
-  const removeFile = (fileToRemove: File) => {
-    setSelectedFiles((currentFiles) =>
-      currentFiles.filter(
-        (file) =>
-          !(
-            file.name === fileToRemove.name &&
-            file.size === fileToRemove.size
-          ),
+  const updateUploadItem = (
+    fileKey: string,
+    updates: Partial<UploadItem>,
+  ) => {
+    setUploadItems((currentItems) =>
+      currentItems.map((item) =>
+        getFileKey(item.file) === fileKey
+          ? { ...item, ...updates }
+          : item,
       ),
     );
   };
 
-  const handleUpload = () => {
-    if (selectedFiles.length === 0) {
+  const removeFile = (fileToRemove: File) => {
+    if (isUploading) {
       return;
     }
 
-    onUpload(selectedFiles);
-    setSelectedFiles([]);
-    onClose();
+    setUploadItems((currentItems) =>
+      currentItems.filter(
+        ({ file }) => getFileKey(file) !== getFileKey(fileToRemove),
+      ),
+    );
+  };
+
+  const handleUpload = async () => {
+    const pendingItems = uploadItems.filter(
+      (item) => item.status !== "success",
+    );
+
+    if (pendingItems.length === 0 || isUploading) {
+      return;
+    }
+
+    setIsUploading(true);
+    setGeneralError("");
+
+    let successfulUploads = 0;
+
+    for (const item of pendingItems) {
+      const fileKey = getFileKey(item.file);
+
+      updateUploadItem(fileKey, {
+        status: "uploading",
+        progress: 0,
+        error: undefined,
+      });
+
+      try {
+        await uploadCloudNestFile(item.file, {
+          onProgress: (progress) => {
+            updateUploadItem(fileKey, { progress });
+          },
+        });
+
+        updateUploadItem(fileKey, {
+          status: "success",
+          progress: 100,
+        });
+
+        successfulUploads += 1;
+      } catch (error) {
+        updateUploadItem(fileKey, {
+          status: "error",
+          error:
+            error instanceof Error
+              ? error.message
+              : "The file could not be uploaded.",
+        });
+      }
+    }
+
+    setIsUploading(false);
+
+    if (successfulUploads > 0) {
+      await onUploadComplete?.();
+    }
+
+    const allSucceeded = pendingItems.length === successfulUploads;
+
+    if (allSucceeded) {
+      setUploadItems([]);
+      onClose();
+    } else {
+      setGeneralError(
+        "Some files could not be uploaded. Review the errors and try again.",
+      );
+    }
   };
 
   const handleClose = () => {
-    setSelectedFiles([]);
+    if (isUploading) {
+      return;
+    }
+
+    setUploadItems([]);
+    setGeneralError("");
     onClose();
   };
+
+  const uploadableCount = uploadItems.filter(
+    (item) => item.status !== "success",
+  ).length;
 
   return (
     <Modal
@@ -99,12 +207,18 @@ function UploadFileModal({
         </div>
 
         <h3>
-          {isDragActive ? "Drop your files here" : "Drag and drop files here"}
+          {isDragActive
+            ? "Drop your files here"
+            : "Drag and drop files here"}
         </h3>
 
         <p>or click to browse files from your computer</p>
 
-        <button className="secondary-button" type="button">
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={isUploading}
+        >
           Browse Files
         </button>
 
@@ -117,54 +231,106 @@ function UploadFileModal({
         </p>
       )}
 
-      {selectedFiles.length > 0 && (
+      {generalError && (
+        <p className="upload-modal__error">{generalError}</p>
+      )}
+
+      {uploadItems.length > 0 && (
         <div className="selected-files">
           <div className="selected-files__header">
             <h3>Selected files</h3>
-            <span>{selectedFiles.length}</span>
+            <span>{uploadItems.length}</span>
           </div>
 
           <div className="selected-files__list">
-            {selectedFiles.map((file) => (
-              <div
-                key={`${file.name}-${file.size}`}
-                className="selected-file"
-              >
-                <div className="selected-file__icon">
-                  <File size={20} />
-                </div>
+            {uploadItems.map((item) => {
+              const fileKey = getFileKey(item.file);
 
-                <div className="selected-file__details">
-                  <strong>{file.name}</strong>
-                  <span>{formatFileSize(file.size)}</span>
-                </div>
+              return (
+                <div key={fileKey} className="selected-file">
+                  <div className="selected-file__icon">
+                    {item.status === "success" ? (
+                      <CheckCircle2 size={20} />
+                    ) : item.status === "uploading" ? (
+                      <LoaderCircle
+                        className="upload-spinner"
+                        size={20}
+                      />
+                    ) : (
+                      <FileIcon size={20} />
+                    )}
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => removeFile(file)}
-                  aria-label={`Remove ${file.name}`}
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            ))}
+                  <div className="selected-file__details">
+                    <strong>{item.file.name}</strong>
+
+                    <span>
+                      {formatFileSize(item.file.size)}
+                      {item.status === "uploading"
+                        ? ` • ${item.progress}%`
+                        : ""}
+                      {item.status === "success"
+                        ? " • Uploaded"
+                        : ""}
+                    </span>
+
+                    {(item.status === "uploading" ||
+                      item.status === "success") && (
+                      <div className="upload-progress">
+                        <div
+                          className="upload-progress__bar"
+                          style={{ width: `${item.progress}%` }}
+                        />
+                      </div>
+                    )}
+
+                    {item.error && (
+                      <small className="upload-modal__error">
+                        {item.error}
+                      </small>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isUploading}
+                    onClick={() => removeFile(item.file)}
+                    aria-label={`Remove ${item.file.name}`}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
       <footer className="modal__footer">
-        <button className="secondary-button" type="button" onClick={handleClose}>
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={isUploading}
+          onClick={handleClose}
+        >
           Cancel
         </button>
 
         <button
           className="primary-button"
           type="button"
-          disabled={selectedFiles.length === 0}
+          disabled={uploadableCount === 0 || isUploading}
           onClick={handleUpload}
         >
-          <CloudUpload size={19} />
-          Upload {selectedFiles.length > 0 ? selectedFiles.length : ""}
+          {isUploading ? (
+            <LoaderCircle className="upload-spinner" size={19} />
+          ) : (
+            <CloudUpload size={19} />
+          )}
+
+          {isUploading
+            ? "Uploading..."
+            : `Upload${uploadableCount > 0 ? ` ${uploadableCount}` : ""}`}
         </button>
       </footer>
     </Modal>
