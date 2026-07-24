@@ -13,7 +13,6 @@ import PreviewFileModal from "../components/files/PreviewFileModal";
 import ShareFileModal from "../components/files/ShareFileModal";
 import DeleteFileModal from "../components/files/DeleteFileModal";
 import NewFolderModal from "../components/files/NewFolderModal";
-import "../styles/files.css";
 
 import Toast, {
   type ToastType,
@@ -24,193 +23,31 @@ import type {
   CloudFolder,
 } from "../types/file";
 
+import "../styles/files.css";
 
-const initialFiles: CloudFile[] = [
-  {
-    id: "1",
-    name: "Summer Training Report.pdf",
-    size: "3.8 MB",
-    category: "document",
-    extension: "PDF",
-    uploadedAt: "Today",
-    isFavorite: true,
-  },
-
-  {
-    id: "2",
-    name: "CloudNest UI.png",
-    size: "2.2 MB",
-    category: "image",
-    extension: "PNG",
-    uploadedAt: "Yesterday",
-    isFavorite: false,
-  },
-
-  {
-    id: "3",
-    name: "Presentation.pptx",
-    size: "8.6 MB",
-    category: "document",
-    extension: "PPTX",
-    uploadedAt: "Yesterday",
-    isFavorite: false,
-  },
-
-  {
-    id: "4",
-    name: "Architecture.mp4",
-    size: "45 MB",
-    category: "video",
-    extension: "MP4",
-    uploadedAt: "2 days ago",
-    isFavorite: true,
-  },
-
-  {
-    id: "5",
-    name: "Assets.zip",
-    size: "12 MB",
-    category: "archive",
-    extension: "ZIP",
-    uploadedAt: "Last week",
-    isFavorite: false,
-  },
-
-  {
-    id: "6",
-    name: "Meeting.mp3",
-    size: "5 MB",
-    category: "audio",
-    extension: "MP3",
-    uploadedAt: "Last week",
-    isFavorite: false,
-  },
-];
-
-const initialFolders: CloudFolder[] = [
-  {
-    id: "f1",
-    name: "Summer Training",
-    fileCount: 15,
-    updatedAt: "Today",
-  },
-
-  {
-    id: "f2",
-    name: "Certificates",
-    fileCount: 8,
-    updatedAt: "Yesterday",
-  },
-
-  {
-    id: "f3",
-    name: "Screenshots",
-    fileCount: 28,
-    updatedAt: "2 days ago",
-  },
-
-  {
-    id: "f4",
-    name: "Project Docs",
-    fileCount: 11,
-    updatedAt: "Last week",
-  },
-];
+const initialFiles: CloudFile[] = [];
+const initialFolders: CloudFolder[] = [];
 
 interface ToastState {
   message: string;
   type: ToastType;
 }
 
-function getCategory(
-  filename: string,
-): CloudFile["category"] {
-  const ext =
-    filename.split(".").pop()?.toLowerCase() ?? "";
-
-  if (
-    [
-      "pdf",
-      "doc",
-      "docx",
-      "ppt",
-      "pptx",
-      "txt",
-      "xls",
-      "xlsx",
-    ].includes(ext)
-  ) {
-    return "document";
-  }
-
-  if (
-    [
-      "png",
-      "jpg",
-      "jpeg",
-      "gif",
-      "svg",
-      "webp",
-    ].includes(ext)
-  ) {
-    return "image";
-  }
-
-  if (
-    [
-      "mp4",
-      "avi",
-      "mov",
-      "mkv",
-    ].includes(ext)
-  ) {
-    return "video";
-  }
-
-  if (
-    [
-      "mp3",
-      "wav",
-      "aac",
-      "ogg",
-    ].includes(ext)
-  ) {
-    return "audio";
-  }
-
-  if (
-    [
-      "zip",
-      "rar",
-      "7z",
-      "tar",
-    ].includes(ext)
-  ) {
-    return "archive";
-  }
-
-  return "other";
-}
-
-function formatSize(bytes: number) {
-  if (bytes < 1024 * 1024) {
-    return `${Math.round(bytes / 1024)} KB`;
-  }
-
-  return `${(
-    bytes /
-    1024 /
-    1024
-  ).toFixed(1)} MB`;
-}
-
 function MyFilesPage() {
-    const [files, setFiles] = useState(initialFiles);
-  const [folders, setFolders] = useState(initialFolders);
+  const [files, setFiles] =
+    useState<CloudFile[]>(initialFiles);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [category, setCategory] = useState("all");
-  const [sortBy, setSortBy] = useState("newest");
+  const [folders, setFolders] =
+    useState<CloudFolder[]>(initialFolders);
+
+  const [searchTerm, setSearchTerm] =
+    useState("");
+
+  const [category, setCategory] =
+    useState("all");
+
+  const [sortBy, setSortBy] =
+    useState("newest");
 
   const [viewMode, setViewMode] =
     useState<"grid" | "list">("grid");
@@ -232,7 +69,8 @@ function MyFilesPage() {
 
   const [toast, setToast] =
     useState<ToastState | null>(null);
-      useEffect(() => {
+
+  useEffect(() => {
     if (!toast) {
       return;
     }
@@ -315,54 +153,10 @@ function MyFilesPage() {
         file.id === fileId
           ? {
               ...file,
-              isFavorite:
-                !file.isFavorite,
+              isFavorite: !file.isFavorite,
             }
           : file,
       ),
-    );
-  };
-
-  const handleUpload = (
-    uploadedFiles: File[],
-  ) => {
-    const newFiles: CloudFile[] =
-      uploadedFiles.map(
-        (file, index) => {
-          const extension =
-            file.name
-              .split(".")
-              .pop()
-              ?.toUpperCase() ??
-            "FILE";
-
-          return {
-            id: `uploaded-${Date.now()}-${index}`,
-            name: file.name,
-            size: formatSize(
-              file.size,
-            ),
-            category: getCategory(
-              file.name,
-            ),
-            extension,
-            uploadedAt: "Just now",
-            isFavorite: false,
-          };
-        },
-      );
-
-    setFiles((currentFiles) => [
-      ...newFiles,
-      ...currentFiles,
-    ]);
-
-    showToast(
-      `${uploadedFiles.length} ${
-        uploadedFiles.length === 1
-          ? "file"
-          : "files"
-      } uploaded successfully.`,
     );
   };
 
@@ -373,16 +167,13 @@ function MyFilesPage() {
       id: `folder-${Date.now()}`,
       name: folderName,
       fileCount: 0,
-      updatedAt:
-        "Created just now",
+      updatedAt: "Created just now",
     };
 
-    setFolders(
-      (currentFolders) => [
-        newFolder,
-        ...currentFolders,
-      ],
-    );
+    setFolders((currentFolders) => [
+      newFolder,
+      ...currentFolders,
+    ]);
 
     showToast(
       `Folder "${folderName}" created successfully.`,
@@ -408,16 +199,13 @@ function MyFilesPage() {
   const handleConfirmDelete = (
     fileId: string,
   ) => {
-    const targetFile =
-      files.find(
-        (file) =>
-          file.id === fileId,
-      );
+    const targetFile = files.find(
+      (file) => file.id === fileId,
+    );
 
     setFiles((currentFiles) =>
       currentFiles.filter(
-        (file) =>
-          file.id !== fileId,
+        (file) => file.id !== fileId,
       ),
     );
 
@@ -429,7 +217,8 @@ function MyFilesPage() {
         : "File moved to Trash.",
     );
   };
-    return (
+
+  return (
     <DashboardLayout>
       <section className="files-page-header">
         <div>
@@ -443,7 +232,8 @@ function MyFilesPage() {
           <h2>My Files</h2>
 
           <p>
-            Manage, organize and securely share your cloud files.
+            Manage, organize and securely share your
+            cloud files.
           </p>
         </div>
 
@@ -480,32 +270,28 @@ function MyFilesPage() {
         onUploadClick={() => setUploadOpen(true)}
       />
 
-      <section className="files-section">
-        <div className="files-section__header">
-          <div>
-            <h3>Folders</h3>
-            <p>
-              Organize your files into collections
-            </p>
+      {folders.length > 0 && (
+        <section className="files-section">
+          <div className="files-section__header">
+            <div>
+              <h3>Folders</h3>
+
+              <p>
+                Organize your files into collections
+              </p>
+            </div>
           </div>
 
-          <button
-            className="text-button"
-            type="button"
-          >
-            View all folders
-          </button>
-        </div>
-
-        <div className="folder-grid">
-          {folders.map((folder) => (
-            <FolderCard
-              key={folder.id}
-              folder={folder}
-            />
-          ))}
-        </div>
-      </section>
+          <div className="folder-grid">
+            {folders.map((folder) => (
+              <FolderCard
+                key={folder.id}
+                folder={folder}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="files-section">
         <div className="files-section__header">
@@ -522,54 +308,74 @@ function MyFilesPage() {
           </div>
         </div>
 
-       {visibleFiles.length === 0 ? (
-  <div className="files-empty-state">
-    <div className="files-empty-state__icon">☁️</div>
-    <h3>No files found</h3>
-    <p>Try changing your search or file-type filter.</p>
-  </div>
-) : viewMode === "grid" ? (
-  <div className="cloud-file-grid">
-    {visibleFiles.map((file) => (
-      <FileCard
-        key={file.id}
-        file={file}
-        onToggleFavorite={handleToggleFavorite}
-        onPreview={setPreviewFile}
-        onDownload={handleDownload}
-        onShare={setShareFile}
-        onDelete={setDeleteFile}
-      />
-    ))}
-  </div>
-) : (
-  <div className="file-list">
-    <div className="file-list__header">
-      <span>File</span>
-      <span>Type</span>
-      <span>Size</span>
-      <span>Uploaded</span>
-      <span>Actions</span>
-    </div>
+        {visibleFiles.length === 0 ? (
+          <div className="files-empty-state">
+            <div className="files-empty-state__icon">
+              ☁️
+            </div>
 
-    {visibleFiles.map((file) => (
-      <FileListRow
-        key={file.id}
-        file={file}
-        onToggleFavorite={handleToggleFavorite}
-        onPreview={setPreviewFile}
-        onDownload={handleDownload}
-        onShare={setShareFile}
-        onDelete={setDeleteFile}
-      />
-    ))}
-  </div>
-)}
+            <h3>No files found</h3>
+
+            <p>
+              Upload your first file to start using
+              CloudNest.
+            </p>
+
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => setUploadOpen(true)}
+            >
+              <Upload size={18} />
+              Upload File
+            </button>
+          </div>
+        ) : viewMode === "grid" ? (
+          <div className="cloud-file-grid">
+            {visibleFiles.map((file) => (
+              <FileCard
+                key={file.id}
+                file={file}
+                onToggleFavorite={
+                  handleToggleFavorite
+                }
+                onPreview={setPreviewFile}
+                onDownload={handleDownload}
+                onShare={setShareFile}
+                onDelete={setDeleteFile}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="file-list">
+            <div className="file-list__header">
+              <span>File</span>
+              <span>Type</span>
+              <span>Size</span>
+              <span>Uploaded</span>
+              <span>Actions</span>
+            </div>
+
+            {visibleFiles.map((file) => (
+              <FileListRow
+                key={file.id}
+                file={file}
+                onToggleFavorite={
+                  handleToggleFavorite
+                }
+                onPreview={setPreviewFile}
+                onDownload={handleDownload}
+                onShare={setShareFile}
+                onDelete={setDeleteFile}
+              />
+            ))}
+          </div>
+        )}
       </section>
-                 <UploadFileModal
+
+      <UploadFileModal
         isOpen={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        onUpload={handleUpload}
       />
 
       <NewFolderModal
@@ -608,4 +414,3 @@ function MyFilesPage() {
 }
 
 export default MyFilesPage;
-  

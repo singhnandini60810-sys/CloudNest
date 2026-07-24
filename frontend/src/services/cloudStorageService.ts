@@ -6,10 +6,10 @@ const API_BASE_URL =
 
 interface UploadUrlResponse {
   uploadUrl: string;
-  key: string;
-  fileId?: string;
+  s3Key: string;
+  fileId: string;
+  expiresIn: number;
 }
-
 interface UploadProgressOptions {
   onProgress?: (percentage: number) => void;
 }
@@ -50,9 +50,9 @@ async function requestUploadUrl(file: File): Promise<UploadUrlResponse> {
     );
   }
 
-  if (!responseBody?.uploadUrl || !responseBody?.key) {
-    throw new Error("The upload service returned an invalid response.");
-  }
+  if (!responseBody?.uploadUrl || !responseBody?.s3Key) {
+  throw new Error("The upload service returned an invalid response.");
+}
 
   return responseBody as UploadUrlResponse;
 }
