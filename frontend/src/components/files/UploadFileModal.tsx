@@ -4,9 +4,18 @@ import {
   File as FileIcon,
   LoaderCircle,
   Trash2,
+  XCircle,
 } from "lucide-react";
-import { useCallback, useState } from "react";
-import { useDropzone } from "react-dropzone";
+import {
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
+import {
+  type FileRejection,
+  useDropzone,
+} from "react-dropzone";
+
 import { uploadCloudNestFile } from "../../services/cloudStorageService";
 import Modal from "../common/Modal";
 
@@ -16,17 +25,28 @@ interface UploadFileModalProps {
   onUploadComplete?: () => void | Promise<void>;
 }
 
+type UploadStatus =
+  | "pending"
+  | "uploading"
+  | "success"
+  | "error";
+
 interface UploadItem {
   file: File;
   progress: number;
-  status: "pending" | "uploading" | "success" | "error";
+  status: UploadStatus;
   error?: string;
 }
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const MAX_FILE_SIZE =
+  25 * 1024 * 1024;
 
 function getFileKey(file: File): string {
-  return `${file.name}-${file.size}-${file.lastModified}`;
+  return [
+    file.name,
+    file.size,
+    file.lastModified,
+  ].join("-");
 }
 
 function formatFileSize(bytes: number): string {
@@ -38,7 +58,30 @@ function formatFileSize(bytes: number): string {
     return `${(bytes / 1024).toFixed(1)} KB`;
   }
 
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(
+    bytes /
+    (1024 * 1024)
+  ).toFixed(1)} MB`;
+}
+
+function getRejectionMessage(
+  rejection: FileRejection,
+): string {
+  const error = rejection.errors[0];
+
+  if (!error) {
+    return `${rejection.file.name} could not be selected.`;
+  }
+
+  if (error.code === "file-too-large") {
+    return `${rejection.file.name} exceeds the 25 MB limit.`;
+  }
+
+  if (error.code === "too-many-files") {
+    return "Too many files were selected.";
+  }
+
+  return `${rejection.file.name}: ${error.message}`;
 }
 
 function UploadFileModal({
@@ -46,83 +89,166 @@ function UploadFileModal({
   onClose,
   onUploadComplete,
 }: UploadFileModalProps) {
-  const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [generalError, setGeneralError] = useState("");
+  const [uploadItems, setUploadItems] =
+    useState<UploadItem[]>([]);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    setGeneralError("");
+  const [isUploading, setIsUploading] =
+    useState(false);
 
-    setUploadItems((currentItems) => {
-      const existingKeys = new Set(
-        currentItems.map(({ file }) => getFileKey(file)),
-      );
+  const [generalError, setGeneralError] =
+    useState("");
 
-      const newItems: UploadItem[] = acceptedFiles
-        .filter((file) => !existingKeys.has(getFileKey(file)))
-        .map((file) => ({
-          file,
-          progress: 0,
-          status: "pending",
-        }));
+  const addAcceptedFiles = useCallback(
+    (acceptedFiles: File[]) => {
+      setUploadItems((currentItems) => {
+        const existingKeys = new Set(
+          currentItems.map(({ file }) =>
+            getFileKey(file),
+          ),
+        );
 
-      return [...currentItems, ...newItems];
-    });
-  }, []);
+        const newItems = acceptedFiles
+          .filter(
+            (file) =>
+              !existingKeys.has(
+                getFileKey(file),
+              ),
+          )
+          .map<UploadItem>((file) => ({
+            file,
+            progress: 0,
+            status: "pending",
+          }));
+
+        return [
+          ...currentItems,
+          ...newItems,
+        ];
+      });
+    },
+    [],
+  );
+
+  const handleDrop = useCallback(
+    (
+      acceptedFiles: File[],
+      rejectedFiles: FileRejection[],
+    ) => {
+      setGeneralError("");
+
+      if (acceptedFiles.length > 0) {
+        addAcceptedFiles(acceptedFiles);
+      }
+
+      if (rejectedFiles.length > 0) {
+        setGeneralError(
+          rejectedFiles
+            .map(getRejectionMessage)
+            .join(" "),
+        );
+      }
+    },
+    [addAcceptedFiles],
+  );
 
   const {
     getRootProps,
     getInputProps,
     isDragActive,
-    fileRejections,
+    open,
   } = useDropzone({
-    onDrop,
+    onDrop: handleDrop,
     multiple: true,
     maxSize: MAX_FILE_SIZE,
     disabled: isUploading,
+    noClick: true,
+    noKeyboard: true,
+
+    // No accept restriction is used.
+    // CloudNest allows any file type that S3 can store.
   });
 
-  const updateUploadItem = (
+  const uploadableCount = useMemo(
+    () =>
+      uploadItems.filter(
+        (item) =>
+          item.status === "pending" ||
+          item.status === "error",
+      ).length,
+    [uploadItems],
+  );
+
+  function updateUploadItem(
     fileKey: string,
     updates: Partial<UploadItem>,
-  ) => {
+  ) {
     setUploadItems((currentItems) =>
       currentItems.map((item) =>
         getFileKey(item.file) === fileKey
-          ? { ...item, ...updates }
+          ? {
+              ...item,
+              ...updates,
+            }
           : item,
       ),
     );
-  };
+  }
 
-  const removeFile = (fileToRemove: File) => {
+  function removeFile(
+    fileToRemove: File,
+  ) {
     if (isUploading) {
       return;
     }
 
     setUploadItems((currentItems) =>
       currentItems.filter(
-        ({ file }) => getFileKey(file) !== getFileKey(fileToRemove),
+        ({ file }) =>
+          getFileKey(file) !==
+          getFileKey(fileToRemove),
       ),
     );
-  };
 
-  const handleUpload = async () => {
-    const pendingItems = uploadItems.filter(
-      (item) => item.status !== "success",
-    );
+    setGeneralError("");
+  }
 
-    if (pendingItems.length === 0 || isUploading) {
+  function clearCompletedFiles() {
+    if (isUploading) {
       return;
     }
+
+    setUploadItems((currentItems) =>
+      currentItems.filter(
+        (item) =>
+          item.status !== "success",
+      ),
+    );
+  }
+
+  async function handleUpload() {
+    if (
+      uploadableCount === 0 ||
+      isUploading
+    ) {
+      return;
+    }
+
+    const itemsToUpload =
+      uploadItems.filter(
+        (item) =>
+          item.status === "pending" ||
+          item.status === "error",
+      );
 
     setIsUploading(true);
     setGeneralError("");
 
     let successfulUploads = 0;
+    let failedUploads = 0;
 
-    for (const item of pendingItems) {
-      const fileKey = getFileKey(item.file);
+    for (const item of itemsToUpload) {
+      const fileKey =
+        getFileKey(item.file);
 
       updateUploadItem(fileKey, {
         status: "uploading",
@@ -131,26 +257,46 @@ function UploadFileModal({
       });
 
       try {
-        await uploadCloudNestFile(item.file, {
-          onProgress: (progress) => {
-            updateUploadItem(fileKey, { progress });
+        await uploadCloudNestFile(
+          item.file,
+          {
+            onProgress: (progress) => {
+              updateUploadItem(
+                fileKey,
+                {
+                  progress: Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      Math.round(progress),
+                    ),
+                  ),
+                },
+              );
+            },
           },
-        });
+        );
 
         updateUploadItem(fileKey, {
           status: "success",
           progress: 100,
+          error: undefined,
         });
 
         successfulUploads += 1;
       } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "The file could not be uploaded.";
+
         updateUploadItem(fileKey, {
           status: "error",
-          error:
-            error instanceof Error
-              ? error.message
-              : "The file could not be uploaded.",
+          progress: 0,
+          error: message,
         });
+
+        failedUploads += 1;
       }
     }
 
@@ -160,19 +306,28 @@ function UploadFileModal({
       await onUploadComplete?.();
     }
 
-    const allSucceeded = pendingItems.length === successfulUploads;
-
-    if (allSucceeded) {
+    if (
+      successfulUploads > 0 &&
+      failedUploads === 0
+    ) {
       setUploadItems([]);
+      setGeneralError("");
       onClose();
-    } else {
+      return;
+    }
+
+    if (failedUploads > 0) {
       setGeneralError(
-        "Some files could not be uploaded. Review the errors and try again.",
+        `${failedUploads} ${
+          failedUploads === 1
+            ? "file"
+            : "files"
+        } could not be uploaded. Review the error below and try again.`,
       );
     }
-  };
+  }
 
-  const handleClose = () => {
+  function handleClose() {
     if (isUploading) {
       return;
     }
@@ -180,24 +335,22 @@ function UploadFileModal({
     setUploadItems([]);
     setGeneralError("");
     onClose();
-  };
-
-  const uploadableCount = uploadItems.filter(
-    (item) => item.status !== "success",
-  ).length;
+  }
 
   return (
     <Modal
       isOpen={isOpen}
       title="Upload files"
-      description="Add documents, images, videos and other files to CloudNest."
+      description="Upload files securely to your CloudNest storage."
       size="large"
       onClose={handleClose}
     >
       <div
         {...getRootProps()}
         className={`upload-modal-zone ${
-          isDragActive ? "upload-modal-zone--active" : ""
+          isDragActive
+            ? "upload-modal-zone--active"
+            : ""
         }`}
       >
         <input {...getInputProps()} />
@@ -208,84 +361,154 @@ function UploadFileModal({
 
         <h3>
           {isDragActive
-            ? "Drop your files here"
+            ? "Drop files to add them"
             : "Drag and drop files here"}
         </h3>
 
-        <p>or click to browse files from your computer</p>
+        <p>
+          Select one or more files from
+          your computer.
+        </p>
 
         <button
           className="secondary-button"
           type="button"
           disabled={isUploading}
+          onClick={(event) => {
+            event.stopPropagation();
+            open();
+          }}
         >
           Browse Files
         </button>
 
-        <small>Maximum size per file: 100 MB</small>
+        <small>
+          Maximum size per file: 25 MB
+        </small>
       </div>
 
-      {fileRejections.length > 0 && (
-        <p className="upload-modal__error">
-          Some files were rejected because they exceed the 100 MB limit.
-        </p>
-      )}
-
       {generalError && (
-        <p className="upload-modal__error">{generalError}</p>
+        <div
+          className="upload-modal__error"
+          role="alert"
+        >
+          <XCircle size={18} />
+
+          <span>{generalError}</span>
+        </div>
       )}
 
       {uploadItems.length > 0 && (
         <div className="selected-files">
           <div className="selected-files__header">
-            <h3>Selected files</h3>
-            <span>{uploadItems.length}</span>
+            <div>
+              <h3>Selected files</h3>
+
+              <span>
+                {uploadItems.length}
+              </span>
+            </div>
+
+            {uploadItems.some(
+              (item) =>
+                item.status ===
+                "success",
+            ) && (
+              <button
+                className="selected-files__clear"
+                type="button"
+                disabled={isUploading}
+                onClick={
+                  clearCompletedFiles
+                }
+              >
+                Clear completed
+              </button>
+            )}
           </div>
 
           <div className="selected-files__list">
             {uploadItems.map((item) => {
-              const fileKey = getFileKey(item.file);
+              const fileKey =
+                getFileKey(item.file);
+
+              const canRemove =
+                !isUploading &&
+                item.status !==
+                  "uploading";
 
               return (
-                <div key={fileKey} className="selected-file">
+                <div
+                  key={fileKey}
+                  className={`selected-file selected-file--${item.status}`}
+                >
                   <div className="selected-file__icon">
-                    {item.status === "success" ? (
-                      <CheckCircle2 size={20} />
-                    ) : item.status === "uploading" ? (
+                    {item.status ===
+                    "success" ? (
+                      <CheckCircle2
+                        size={20}
+                      />
+                    ) : item.status ===
+                      "uploading" ? (
                       <LoaderCircle
                         className="upload-spinner"
                         size={20}
                       />
+                    ) : item.status ===
+                      "error" ? (
+                      <XCircle size={20} />
                     ) : (
                       <FileIcon size={20} />
                     )}
                   </div>
 
                   <div className="selected-file__details">
-                    <strong>{item.file.name}</strong>
+                    <strong
+                      title={item.file.name}
+                    >
+                      {item.file.name}
+                    </strong>
 
                     <span>
-                      {formatFileSize(item.file.size)}
-                      {item.status === "uploading"
+                      {formatFileSize(
+                        item.file.size,
+                      )}
+
+                      {item.status ===
+                      "uploading"
                         ? ` • ${item.progress}%`
                         : ""}
-                      {item.status === "success"
+
+                      {item.status ===
+                      "success"
                         ? " • Uploaded"
+                        : ""}
+
+                      {item.status ===
+                      "error"
+                        ? " • Failed"
                         : ""}
                     </span>
 
-                    {(item.status === "uploading" ||
-                      item.status === "success") && (
+                    {(item.status ===
+                      "uploading" ||
+                      item.status ===
+                        "success") && (
                       <div className="upload-progress">
                         <div
                           className="upload-progress__bar"
-                          style={{ width: `${item.progress}%` }}
+                          style={{
+                            width: `${item.progress}%`,
+                          }}
                         />
                       </div>
                     )}
 
                     {item.error && (
-                      <small className="upload-modal__error">
+                      <small
+                        className="upload-modal__file-error"
+                        role="alert"
+                      >
                         {item.error}
                       </small>
                     )}
@@ -293,9 +516,12 @@ function UploadFileModal({
 
                   <button
                     type="button"
-                    disabled={isUploading}
-                    onClick={() => removeFile(item.file)}
+                    disabled={!canRemove}
+                    onClick={() =>
+                      removeFile(item.file)
+                    }
                     aria-label={`Remove ${item.file.name}`}
+                    title="Remove file"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -319,18 +545,28 @@ function UploadFileModal({
         <button
           className="primary-button"
           type="button"
-          disabled={uploadableCount === 0 || isUploading}
-          onClick={handleUpload}
+          disabled={
+            uploadableCount === 0 ||
+            isUploading
+          }
+          onClick={() => {
+            void handleUpload();
+          }}
         >
           {isUploading ? (
-            <LoaderCircle className="upload-spinner" size={19} />
+            <LoaderCircle
+              className="upload-spinner"
+              size={19}
+            />
           ) : (
             <CloudUpload size={19} />
           )}
 
           {isUploading
             ? "Uploading..."
-            : `Upload${uploadableCount > 0 ? ` ${uploadableCount}` : ""}`}
+            : uploadableCount === 1
+              ? "Upload 1 file"
+              : `Upload ${uploadableCount} files`}
         </button>
       </footer>
     </Modal>

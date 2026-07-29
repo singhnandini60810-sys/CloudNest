@@ -1,13 +1,30 @@
-import { Cloud, Sparkles, Upload } from "lucide-react";
+import {
+  Cloud,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import AssistantPanel from "../components/assistants/AssistantPanel";
+
 import FileTypeChart from "../components/dashboard/FileTypeChart";
 import QuickUpload from "../components/dashboard/QuickUpload";
-import RecentActivity from "../components/dashboard/RecentActivity";
 import RecentFiles from "../components/dashboard/RecentFiles";
 import StatCards from "../components/dashboard/StatCards";
 import StorageOverview from "../components/dashboard/StorageOverview";
 import DashboardLayout from "../components/layout/DashboardLayout";
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+
+  if (hour < 12) {
+    return "Good morning";
+  }
+
+  if (hour < 17) {
+    return "Good afternoon";
+  }
+
+  return "Good evening";
+}
 
 function DashboardPage() {
   const navigate = useNavigate();
@@ -21,10 +38,10 @@ function DashboardPage() {
             Welcome back
           </span>
 
-          <h2>Good morning, Nandini!</h2>
+          <h2>{getGreeting()}, Nandini!</h2>
 
           <p>
-            Upload, organize and securely share your files from one beautiful
+            Upload, organize, download and securely share your files from one
             cloud workspace.
           </p>
 
@@ -52,25 +69,7 @@ function DashboardPage() {
 
       <section className="dashboard-grid dashboard-grid--content">
         <RecentFiles />
-        <AssistantPanel />
-      </section>
-
-      <section className="dashboard-grid dashboard-grid--bottom">
-        <RecentActivity />
         <QuickUpload />
-      </section>
-
-      <section className="dashboard-footer-banner">
-        <div className="dashboard-footer-banner__cloud">☁️</div>
-
-        <div>
-          <h3>Keep your files safe in CloudNest</h3>
-          <p>Your data is securely stored and protected in the cloud.</p>
-        </div>
-
-        <button className="secondary-button" type="button">
-          Learn More
-        </button>
       </section>
     </DashboardLayout>
   );

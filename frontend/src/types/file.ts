@@ -1,6 +1,6 @@
 export type FileCategory =
-  | "document"
   | "image"
+  | "document"
   | "video"
   | "audio"
   | "archive"
@@ -9,10 +9,20 @@ export type FileCategory =
 export interface CloudFile {
   id: string;
   name: string;
+
   size: string;
+  sizeInBytes: number;
+
   category: FileCategory;
   extension: string;
+
   uploadedAt: string;
+  createdAt: string;
+
+  contentType: string;
+  s3Key: string;
+  status: string;
+
   isFavorite: boolean;
 }
 

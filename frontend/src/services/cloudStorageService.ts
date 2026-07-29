@@ -1,60 +1,161 @@
 import { fetchAuthSession } from "aws-amplify/auth";
 
 const API_BASE_URL =
-  import.meta.env.VITE_CLOUDNEST_API_URL ??
+  import.meta.env.VITE_API_BASE_URL?.trim() ||
+  import.meta.env.VITE_CLOUDNEST_API_URL?.trim() ||
   "https://hc1h86vvdk.execute-api.eu-north-1.amazonaws.com/prod";
 
-interface UploadUrlResponse {
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
+
+interface ApiErrorResponse {
+  message?: string;
+  error?: string;
+}
+
+export interface UploadUrlResponse {
   uploadUrl: string;
   s3Key: string;
   fileId: string;
   expiresIn: number;
 }
-interface UploadProgressOptions {
+
+export interface UploadProgressOptions {
   onProgress?: (percentage: number) => void;
 }
 
-async function getIdToken(): Promise<string> {
+async function getAccessToken(): Promise<string> {
   const session = await fetchAuthSession();
-  const token = session.tokens?.idToken?.toString();
 
-  if (!token) {
-    throw new Error("Your session has expired. Please sign in again.");
-  }
+  const accessToken =
+    session.tokens?.accessToken?.toString();
 
-  return token;
-}
-
-async function requestUploadUrl(file: File): Promise<UploadUrlResponse> {
-  const token = await getIdToken();
-
-  const response = await fetch(`${API_BASE_URL}/upload-url`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      fileName: file.name,
-      contentType: file.type || "application/octet-stream",
-      fileSize: file.size,
-    }),
-  });
-
-  const responseBody = await response.json().catch(() => null);
-
-  if (!response.ok) {
+  if (!accessToken) {
     throw new Error(
-      responseBody?.message ??
-        `Could not create an upload URL (${response.status}).`,
+      "Your session has expired. Please sign in again.",
     );
   }
 
-  if (!responseBody?.uploadUrl || !responseBody?.s3Key) {
-  throw new Error("The upload service returned an invalid response.");
+  return accessToken;
 }
 
-  return responseBody as UploadUrlResponse;
+async function parseErrorResponse(
+  response: Response,
+  fallbackMessage: string,
+): Promise<string> {
+  try {
+    const data =
+      (await response.json()) as ApiErrorResponse;
+
+    return (
+      data.message ||
+      data.error ||
+      fallbackMessage
+    );
+  } catch {
+    return fallbackMessage;
+  }
+}
+
+function validateFile(file: File): void {
+  if (!(file instanceof File)) {
+    throw new Error(
+      "A valid file is required.",
+    );
+  }
+
+  if (!file.name.trim()) {
+    throw new Error(
+      "The selected file does not have a valid name.",
+    );
+  }
+
+  if (file.size <= 0) {
+    throw new Error(
+      "Empty files cannot be uploaded.",
+    );
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(
+      "The selected file exceeds the 25 MB upload limit.",
+    );
+  }
+}
+
+async function requestUploadUrl(
+  file: File,
+): Promise<UploadUrlResponse> {
+  const accessToken =
+    await getAccessToken();
+
+  const response = await fetch(
+    `${API_BASE_URL}/upload-url`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType:
+          file.type ||
+          "application/octet-stream",
+        fileSize: file.size,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const message =
+      await parseErrorResponse(
+        response,
+        `Could not create an upload URL (${response.status}).`,
+      );
+
+    throw new Error(message);
+  }
+
+  const data =
+    (await response.json()) as Partial<UploadUrlResponse>;
+
+  if (
+    typeof data.uploadUrl !== "string" ||
+    !data.uploadUrl.trim()
+  ) {
+    throw new Error(
+      "The upload service did not return a valid S3 upload URL.",
+    );
+  }
+
+  if (
+    typeof data.s3Key !== "string" ||
+    !data.s3Key.trim()
+  ) {
+    throw new Error(
+      "The upload service did not return a valid S3 object key.",
+    );
+  }
+
+  if (
+    typeof data.fileId !== "string" ||
+    !data.fileId.trim()
+  ) {
+    throw new Error(
+      "The upload service did not return a valid file ID.",
+    );
+  }
+
+  return {
+    uploadUrl: data.uploadUrl,
+    s3Key: data.s3Key,
+    fileId: data.fileId,
+    expiresIn:
+      typeof data.expiresIn === "number"
+        ? data.expiresIn
+        : 900,
+  };
 }
 
 function uploadFileToS3(
@@ -63,47 +164,102 @@ function uploadFileToS3(
   options: UploadProgressOptions = {},
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const request = new XMLHttpRequest();
+    const request =
+      new XMLHttpRequest();
 
-    request.open("PUT", uploadUrl);
+    request.open(
+      "PUT",
+      uploadUrl,
+      true,
+    );
 
     request.setRequestHeader(
       "Content-Type",
-      file.type || "application/octet-stream",
+      file.type ||
+        "application/octet-stream",
     );
 
-    request.upload.addEventListener("progress", (event) => {
-      if (!event.lengthComputable) {
-        return;
-      }
+    request.upload.addEventListener(
+      "progress",
+      (event) => {
+        if (!event.lengthComputable) {
+          return;
+        }
 
-      const percentage = Math.round((event.loaded / event.total) * 100);
-      options.onProgress?.(percentage);
-    });
+        const percentage = Math.min(
+          100,
+          Math.max(
+            0,
+            Math.round(
+              (event.loaded /
+                event.total) *
+                100,
+            ),
+          ),
+        );
 
-    request.addEventListener("load", () => {
-      if (request.status >= 200 && request.status < 300) {
-        options.onProgress?.(100);
-        resolve();
-        return;
-      }
+        options.onProgress?.(
+          percentage,
+        );
+      },
+    );
 
-      reject(
-        new Error(`S3 upload failed with status ${request.status}.`),
-      );
-    });
+    request.addEventListener(
+      "load",
+      () => {
+        if (
+          request.status >= 200 &&
+          request.status < 300
+        ) {
+          options.onProgress?.(100);
+          resolve();
+          return;
+        }
 
-    request.addEventListener("error", () => {
-      reject(
-        new Error(
-          "The file could not be uploaded. Check your network and S3 CORS settings.",
-        ),
-      );
-    });
+        reject(
+          new Error(
+            `S3 upload failed with status ${request.status}.`,
+          ),
+        );
+      },
+    );
 
-    request.addEventListener("abort", () => {
-      reject(new Error("The upload was cancelled."));
-    });
+    request.addEventListener(
+      "error",
+      () => {
+        reject(
+          new Error(
+            "The file could not be uploaded. Check your network connection and S3 CORS configuration.",
+          ),
+        );
+      },
+    );
+
+    request.addEventListener(
+      "timeout",
+      () => {
+        reject(
+          new Error(
+            "The upload timed out. Please try again.",
+          ),
+        );
+      },
+    );
+
+    request.addEventListener(
+      "abort",
+      () => {
+        reject(
+          new Error(
+            "The upload was cancelled.",
+          ),
+        );
+      },
+    );
+
+    request.timeout = 120000;
+
+    options.onProgress?.(0);
 
     request.send(file);
   });
@@ -113,9 +269,16 @@ export async function uploadCloudNestFile(
   file: File,
   options: UploadProgressOptions = {},
 ): Promise<UploadUrlResponse> {
-  const uploadDetails = await requestUploadUrl(file);
+  validateFile(file);
 
-  await uploadFileToS3(file, uploadDetails.uploadUrl, options);
+  const uploadDetails =
+    await requestUploadUrl(file);
+
+  await uploadFileToS3(
+    file,
+    uploadDetails.uploadUrl,
+    options,
+  );
 
   return uploadDetails;
 }
